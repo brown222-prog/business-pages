@@ -1,7 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Phone, MapPin, Clock, Plus, Edit2, Save, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Phone, MapPin, Clock, Plus, Edit2, Save, X, Lock } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface CustomSection {
   title: string;
@@ -15,7 +22,7 @@ interface Testimonial {
 }
 
 interface Business {
-  id: number;
+  id: string;
   slug: string;
   name: string;
   phone: string;
@@ -45,51 +52,15 @@ interface FormData {
   primaryColor: string;
 }
 
-const initialBusinesses: Business[] = [
-  {
-    id: 1,
-    slug: 'abstract-heating-winnipeg',
-    name: "Abstract Heating Winnipeg",
-    phone: '(204) 612-5982',
-    hours: 'Mon-Fri: 7am-4pm | 24/7 Emergency Service',
-    services: 'Heating system installation & repair, HVAC installation, Air conditioning repair & installation, 24h emergency heating service, Floor/electric/oil/hydronic/forced-air heating, Gas line installation, Energy-efficient heating solutions, Residential & commercial heating',
-    address: '69 Bibeau Bay, Winnipeg, MB R2J 2A6, Canada',
-    mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2569.8668742!2d-97.0892!3d49.8897!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x52ea715d99999999%3A0x9999999999999999!2s69%20Bibeau%20Bay%2C%20Winnipeg%2C%20MB%20R2J%202A6!5e0!3m2!1sen!2sca!4v1234567890',
-    googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=Abstract+Heating+69+Bibeau+Bay+Winnipeg',
-    testimonials: [
-      {
-        rating: 5,
-        text: "My family and I needed service on our furnace. I came across Abstract Heating and Rob, a very nice gentleman, came out, gave me a quote and came back the next day and fixed it. We are so grateful. Fantastic service and very nice people!",
-        author: "David Lindsay"
-      },
-      {
-        rating: 5,
-        text: "Family owned and operated with over 40 years experience. They take the time to explain all the details and leave the workspace tidy. Professional and knowledgeable.",
-        author: "Verified Customer"
-      },
-      {
-        rating: 5,
-        text: "Rob was honest, professional, and reasonably priced. He explained everything clearly and did quality work. Highly recommend!",
-        author: "Local Homeowner"
-      }
-    ],
-    photos: [
-      'https://images.unsplash.com/photo-1581094271901-8022df4466f9?w=800',
-      'https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=800',
-      'https://images.unsplash.com/photo-1607400201889-565b1ee75f8e?w=800',
-      'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800'
-    ],
-    customSections: [],
-    primaryColor: '#2563eb',
-    active: true
-  }
-];
-
 function App() {
   const [view, setView] = useState<'admin' | 'preview'>('admin');
-  const [businesses, setBusinesses] = useState<Business[]>(initialBusinesses);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [formData, setFormData] = useState<FormData>({
     name: '',
     phone: '',
@@ -103,6 +74,84 @@ function App() {
     customSections: [],
     primaryColor: '#2563eb'
   });
+
+  // Check if already authenticated on mount
+  useEffect(() => {
+    const authStatus = sessionStorage.getItem('admin_authenticated');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+      loadBusinesses();
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Set your password here - change this to whatever you want
+    const ADMIN_PASSWORD = 'Circulair@3';
+    
+    if (password === ADMIN_PASSWORD) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('admin_authenticated', 'true');
+      loadBusinesses();
+      setPasswordError('');
+    } else {
+      setPasswordError('Incorrect password');
+      setPassword('');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('admin_authenticated');
+    setPassword('');
+  };
+
+  const loadBusinesses = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('businesses')
+        .select(`
+          *,
+          photos(file_url, display_order),
+          testimonials(rating, text, author, display_order),
+          custom_sections(title, content, display_order)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const transformedBusinesses: Business[] = (data || []).map((b: any) => ({
+        id: b.id,
+        slug: b.slug,
+        name: b.name,
+        phone: b.phone,
+        hours: b.hours,
+        services: b.services,
+        address: b.address,
+        mapEmbedUrl: b.map_embed_url || '',
+        googleMapsUrl: b.google_maps_url || '',
+        primaryColor: b.primary_color || '#2563eb',
+        active: b.active,
+        photos: (b.photos || [])
+          .sort((a: any, b: any) => a.display_order - b.display_order)
+          .map((p: any) => p.file_url),
+        testimonials: (b.testimonials || [])
+          .sort((a: any, b: any) => a.display_order - b.display_order),
+        customSections: (b.custom_sections || [])
+          .sort((a: any, b: any) => a.display_order - b.display_order)
+      }));
+
+      setBusinesses(transformedBusinesses);
+    } catch (error) {
+      console.error('Error loading businesses:', error);
+      alert('Failed to load businesses. Check console for details.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreate = () => {
     setEditMode(true);
@@ -140,32 +189,105 @@ function App() {
     });
   };
 
-  const handleSave = () => {
-    if (selectedBusiness) {
-      setBusinesses(businesses.map(b => 
-        b.id === selectedBusiness.id ? { 
-          ...formData, 
-          id: b.id, 
-          slug: b.slug, 
-          active: b.active 
-        } as Business : b
-      ));
-    } else {
-      const newBusiness: Business = {
-        ...formData,
-        id: Date.now(),
-        slug: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+  const handleSave = async () => {
+    try {
+      const slug = selectedBusiness?.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      
+      const businessData = {
+        slug,
+        name: formData.name,
+        phone: formData.phone,
+        hours: formData.hours,
+        services: formData.services,
+        address: formData.address,
+        map_embed_url: formData.mapEmbedUrl,
+        google_maps_url: formData.googleMapsUrl,
+        primary_color: formData.primaryColor,
         active: true
       };
-      setBusinesses([...businesses, newBusiness]);
+
+      let businessId: string;
+
+      if (selectedBusiness) {
+        const { error } = await supabase
+          .from('businesses')
+          .update(businessData)
+          .eq('id', selectedBusiness.id);
+
+        if (error) throw error;
+        businessId = selectedBusiness.id;
+
+        await supabase.from('photos').delete().eq('business_id', businessId);
+        await supabase.from('testimonials').delete().eq('business_id', businessId);
+        await supabase.from('custom_sections').delete().eq('business_id', businessId);
+      } else {
+        const { data, error } = await supabase
+          .from('businesses')
+          .insert(businessData)
+          .select()
+          .single();
+
+        if (error) throw error;
+        businessId = data.id;
+      }
+
+      if (formData.photos.length > 0) {
+        const photosData = formData.photos.map((url, idx) => ({
+          business_id: businessId,
+          file_url: url,
+          display_order: idx
+        }));
+        await supabase.from('photos').insert(photosData);
+      }
+
+      if (formData.testimonials.length > 0) {
+        const testimonialsData = formData.testimonials.map((t, idx) => ({
+          business_id: businessId,
+          rating: t.rating,
+          text: t.text,
+          author: t.author,
+          display_order: idx
+        }));
+        await supabase.from('testimonials').insert(testimonialsData);
+      }
+
+      if (formData.customSections.length > 0) {
+        const sectionsData = formData.customSections.map((s, idx) => ({
+          business_id: businessId,
+          title: s.title,
+          content: s.content,
+          display_order: idx
+        }));
+        await supabase.from('custom_sections').insert(sectionsData);
+      }
+
+      await loadBusinesses();
+      
+      setEditMode(false);
+      setSelectedBusiness(null);
+      alert('Business saved successfully!');
+    } catch (error) {
+      console.error('Error saving business:', error);
+      alert('Failed to save business. Check console for details.');
     }
-    setEditMode(false);
-    setSelectedBusiness(null);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('Delete this business?')) {
-      setBusinesses(businesses.filter(b => b.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this business? This cannot be undone.')) return;
+
+    try {
+      const { error } = await supabase
+        .from('businesses')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      await loadBusinesses();
+      alert('Business deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting business:', error);
+      alert('Failed to delete business. Check console for details.');
     }
   };
 
@@ -300,6 +422,47 @@ function App() {
     </div>
   );
 
+  // Login Screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-6">
+        <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+          <div className="flex justify-center mb-6">
+            <div className="bg-blue-100 p-4 rounded-full">
+              <Lock className="text-blue-600" size={40} />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">Admin Login</h1>
+          <p className="text-center text-gray-600 mb-8">Enter password to access admin panel</p>
+          
+          <form onSubmit={handleLogin}>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold mb-2 text-gray-900">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter password"
+                autoFocus
+              />
+              {passwordError && (
+                <p className="text-red-600 text-sm mt-2">{passwordError}</p>
+              )}
+            </div>
+            
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (view === 'admin') {
     return (
       <div className="min-h-screen bg-gray-100 p-6">
@@ -307,16 +470,28 @@ function App() {
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-3xl font-bold text-gray-800">Admin Panel</h1>
-              <button
-                onClick={handleCreate}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700"
-              >
-                <Plus size={20} className="mr-2" />
-                New Business
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreate}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700"
+                >
+                  <Plus size={20} className="mr-2" />
+                  New Business
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
 
-            {editMode ? (
+            {loading ? (
+              <div className="text-center py-12">
+                <p className="text-gray-600">Loading businesses...</p>
+              </div>
+            ) : editMode ? (
               <div className="border-t pt-6">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold">
@@ -491,35 +666,41 @@ function App() {
               </div>
             ) : (
               <div className="grid gap-4">
-                {businesses.map(business => (
-                  <div key={business.id} className="border rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-900">{business.name}</h3>
-                      <p className="text-sm text-gray-700">{business.phone}</p>
-                      <p className="text-xs text-gray-600">/{business.slug}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handlePreview(business)}
-                        className="bg-blue-100 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-200"
-                      >
-                        Preview
-                      </button>
-                      <button
-                        onClick={() => handleEdit(business)}
-                        className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(business.id)}
-                        className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
+                {businesses.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>No businesses yet. Click "New Business" to create one!</p>
                   </div>
-                ))}
+                ) : (
+                  businesses.map(business => (
+                    <div key={business.id} className="border rounded-lg p-4 flex justify-between items-center">
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">{business.name}</h3>
+                        <p className="text-sm text-gray-700">{business.phone}</p>
+                        <p className="text-xs text-gray-600">/{business.slug}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handlePreview(business)}
+                          className="bg-blue-100 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-200"
+                        >
+                          Preview
+                        </button>
+                        <button
+                          onClick={() => handleEdit(business)}
+                          className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(business.id)}
+                          className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
