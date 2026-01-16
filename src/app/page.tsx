@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { Phone, MapPin, Clock, Plus, Edit2, Save, X, Lock } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -75,7 +74,6 @@ function App() {
     primaryColor: '#2563eb'
   });
 
-  // Check if already authenticated on mount
   useEffect(() => {
     const authStatus = sessionStorage.getItem('admin_authenticated');
     if (authStatus === 'true') {
@@ -88,8 +86,7 @@ function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Set your password here - change this to whatever you want
-    const ADMIN_PASSWORD = 'Circulair@3';
+    const ADMIN_PASSWORD = 'admin123';
     
     if (password === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
@@ -422,7 +419,6 @@ function App() {
     </div>
   );
 
-  // Login Screen
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-6">
@@ -458,6 +454,14 @@ function App() {
               Login
             </button>
           </form>
+
+          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-xs text-yellow-800">
+              <strong>Default password:</strong> admin123
+              <br />
+              Change this in the code before deploying!
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -671,35 +675,67 @@ function App() {
                     <p>No businesses yet. Click "New Business" to create one!</p>
                   </div>
                 ) : (
-                  businesses.map(business => (
-                    <div key={business.id} className="border rounded-lg p-4 flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-900">{business.name}</h3>
-                        <p className="text-sm text-gray-700">{business.phone}</p>
-                        <p className="text-xs text-gray-600">/{business.slug}</p>
+                  businesses.map(business => {
+                    const publicUrl = typeof window !== 'undefined' ? `${window.location.origin}/${business.slug}` : `/${business.slug}`;
+                    return (
+                      <div key={business.id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-bold text-lg text-gray-900">{business.name}</h3>
+                            <p className="text-sm text-gray-700">{business.phone}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handlePreview(business)}
+                              className="bg-blue-100 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-200 text-sm"
+                            >
+                              Preview
+                            </button>
+                            <button
+                              onClick={() => handleEdit(business)}
+                              className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-200"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(business.id)}
+                              className="bg-red-100 text-red-600 px-3 py-2 rounded-lg hover:bg-red-200"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1 font-semibold">📤 Public URL (share with client):</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={publicUrl}
+                              readOnly
+                              className="flex-1 text-sm bg-white border border-gray-300 rounded px-2 py-1 text-gray-800"
+                            />
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(publicUrl);
+                                alert('URL copied!');
+                              }}
+                              className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 whitespace-nowrap"
+                            >
+                              Copy
+                            </button>
+                            <a
+                              href={publicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 whitespace-nowrap"
+                            >
+                              Open
+                            </a>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handlePreview(business)}
-                          className="bg-blue-100 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-200"
-                        >
-                          Preview
-                        </button>
-                        <button
-                          onClick={() => handleEdit(business)}
-                          className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(business.id)}
-                          className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
