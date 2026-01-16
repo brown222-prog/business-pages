@@ -86,7 +86,7 @@ function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const ADMIN_PASSWORD = 'admin123';
+    const ADMIN_PASSWORD = 'Circulair@3';
     
     if (password === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
@@ -454,14 +454,6 @@ function App() {
               Login
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-xs text-yellow-800">
-              <strong>Default password:</strong> admin123
-              <br />
-              Change this in the code before deploying!
-            </p>
-          </div>
         </div>
       </div>
     );
