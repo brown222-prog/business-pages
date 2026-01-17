@@ -1,5 +1,18 @@
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
-  redirect('/admin');
+  const router = useRouter();
+
+  useEffect(() => {
+    router.push('/admin/login');
+  }, [router]);
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="text-gray-600">Redirecting to login...</div>
+    </div>
+  );
 }
